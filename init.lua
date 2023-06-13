@@ -1,5 +1,6 @@
-state = {
+local state = {
     banner_text = "",
+    banner_cache = {},
     exe_path = os.getenv("PWD") or io.popen("cd"):read() .. "\\elite_force_webhook.exe "
 }
 
@@ -19,18 +20,21 @@ local function clean_pso_text(text)
 end
 
 local function present()    
-    imgui.Begin("Banner")
-
     local banner_text = get_banner_text()
     banner_text = '"' .. clean_pso_text(banner_text) .. '"'
 
     if banner_text:find("has found") and state.banner_text ~= banner_text then
+        local command = "start " .. state.exe_path .. banner_text
         state.banner_text = banner_text
-        command = "start " .. state.exe_path .. banner_text
+
+        table.insert(state.banner_cache, banner_text)
         os.execute(command)
     end 
 
-    imgui.Text("Rare Item Banner: " .. banner_text)
+    imgui.Begin("Banner")
+        for k, v in pairs(state.banner_cache) do
+            imgui.Text("Rare Item Banner: " .. v)
+        end
     imgui.End()
 end
 
