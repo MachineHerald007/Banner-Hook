@@ -1,6 +1,9 @@
 local core_mainmenu = require("core_mainmenu")
 local lib_helpers = require("solylib.helpers")
-local lib_items_list = require("solylib.items.items_list")
+local lib_items = require("solylib.items.items")
+local lib_characters = require("solylib.characters")
+local lib_items_cfg = require("solylib.items.items_configuration")
+local custom_list = require("Banner Hook.custom_list")
 local cfg = require("Banner Hook.configuration")
 local optionsLoaded, options = pcall(require, "Banner Hook.options")
 
@@ -11,24 +14,132 @@ if optionsLoaded then
     options.configurationEnableWindow = lib_helpers.NotNilOrDefault(options.configurationEnableWindow, true)
     options.enable                    = lib_helpers.NotNilOrDefault(options.enable, true)
     options.server                    = lib_helpers.NotNilOrDefault(options.server, 1)
+    options.updateThrottle            = lib_helpers.NotNilOrDefault(options.updateThrottle, 0)
 else
     options = 
     {
         configurationEnableWindow = true,
         enable = true,
-        server = 1
+        server = 1,
+        updateThrottle = 0
     }
 end
+
+local update_delay = (options.updateThrottle * 1000)
+local current_time = 0
+local last_inventory_index = -1
+local last_inventory_time = 0
+local cache_inventory = nil
+local last_floor_time = 0
+local cache_floor = nil
 
 local state = {
     banner_text = "",
     banner_cache = {},
+    inventoried_cache = {},
+    white_listed_drops = {},
     exe_path = os.getenv("PWD") or io.popen("cd"):read() .. "\\elite_force_webhook.exe "
 }
 
-lib_items_list.AddServerItems(options.server)
+local function wrap_as_single_arg(banner)
+    return '"' .. banner .. '"'
+end
 
-local function SaveOptions(options)
+local function process_weapon(item, floor)
+    if floor then
+        for k, v in pairs(custom_list) do
+            if
+                item.name == v.name and
+                item.weapon.stats[6] >= v.hit_threshold
+            then
+                local white_list_count = table.getn(state.white_listed_drops)
+                local white_listed = false
+                
+                for i=1, white_list_count, 1 do
+                    if state.white_listed_drops[i].id == item.id then
+                        white_listed = true
+                    end
+                end
+
+                if white_listed == false and state.inventoried_cache[item.id] == nil then
+                    item.from_inventory = false
+                    table.insert(state.white_listed_drops, item)
+                end
+            end
+        end
+    else
+        state.inventoried_cache[item.id] = item
+        local white_list_count = table.getn(state.white_listed_drops)
+        for i=1, white_list_count, 1 do
+            for inventoried_id, _v in pairs(state.inventoried_cache) do
+                if
+                    inventoried_id ~= item.id and
+                    state.white_listed_drops[i].id == item.id and
+                    state.white_listed_drops[i].from_inventory == false
+                then
+                    state.white_listed_drops[i].from_inventory = true
+                    local player_address = lib_characters.GetSelf()
+                    local player_name = lib_characters.GetPlayerName(player_address)
+                    local banner = "**".. player_name .. "** has found " .. "**" .. item.name .. "** with " .. item.weapon.stats[6] .. "hit!"                    
+                    local command = "start " .. state.exe_path .. wrap_as_single_arg(banner)
+                    os.execute(command)   
+                end
+            end
+        end
+    end
+end
+
+local function process_tool(item, floor) end
+local function process_unit(item, floor) end
+local function process_frame(item, floor) end
+local function process_barrier(item, floor) end
+
+local function process_item(item, floor)
+    floor = floor or false
+
+    if item.data[1] == 0 then
+        process_weapon(item, floor)
+    elseif item.data[1] == 1 then
+        if item.data[2] == 1 then
+            process_frame(item, floor)
+        elseif item.data[2] == 2 then
+            process_barrier(item, floor)
+        elseif item.data[2] == 3 then
+            process_unit(item, floor)
+        end
+    elseif item.data[1] == 3 then
+        process_tool(item, floor)
+    end
+end
+
+local function process_inventory(index)
+    index = index or lib_items.Me
+
+    if last_inventory_time + update_delay < current_time or last_inventory_index ~= index or cache_inventory == nil then
+        cache_inventory = lib_items.GetInventory(index)
+        last_inventory_index = index
+        last_inventory_time = current_time
+    end
+
+    local itemCount = table.getn(cache_inventory.items)
+    for i=1,itemCount,1 do
+        process_item(cache_inventory.items[i], false)
+    end
+end
+
+local function process_floor()
+    if last_floor_time + update_delay < current_time or cache_floor == nil then
+        cache_floor = lib_items.GetItemList(lib_items.NoOwner, options.invertItemList)
+        last_floor_time = current_time
+    end
+
+    local itemCount = table.getn(cache_floor)
+    for i=1,itemCount,1 do
+        process_item(cache_floor[i], true)
+    end
+end
+
+local function save_options(options)
     local file = io.open(optionsFileName, "w")
     if file ~= nil then
         io.output(file)
@@ -42,19 +153,6 @@ local function SaveOptions(options)
 
         io.close(file)
     end
-end
-
--- Soly Wrapper Function
-local function TextCWrapper(newLine, col, fmt, ...)
-    -- Update the color if one was specified here.
-    col = col or 0xFFFFFFFF
-
-    local rgb = bit.band(col, 0x00FFFFFF)
-    local oldAlpha = bit.rshift(col, 24)
-    local newAlpha = math.floor(oldAlpha * overrideAlphaPercent)
-    col = bit.bor(bit.lshift(newAlpha, 24), rgb)
-
-    return lib_helpers.TextC(newLine, col, fmt, ...)
 end
 
 local function get_banner_text()
@@ -72,7 +170,7 @@ local function clean_pso_text(text)
     return text:gsub(string.char(9) .. "C%d", "")
 end
 
-local function process_banner()
+local function present_banner()
     local banner_text = get_banner_text()
     banner_text = '"' .. clean_pso_text(banner_text) .. '"'
 
@@ -103,7 +201,7 @@ local function present()
 
     if ConfigurationWindow.changed then
         ConfigurationWindow.changed = false
-        SaveOptions(options)
+        save_options(options)
     end
 
     -- Global enable here to let the configuration window work
@@ -111,7 +209,12 @@ local function present()
         return
     end
 
-    process_banner()
+    --- Update timer for update throttle
+    current_time = pso.get_tick_count()
+
+    present_banner()
+    process_inventory(lib_items.Me)
+    process_floor()
 end
 
 local function init()
