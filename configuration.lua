@@ -30,6 +30,11 @@ local function ConfigurationWindow(configuration)
                 this.changed = true
             end
 
+            if imgui.Checkbox("Enable Custom Banners", _configuration.enableCustomBanners) then
+                _configuration.enableCustomBanners = not _configuration.enableCustomBanners
+                this.changed = true
+            end
+
             imgui.PushItemWidth(100)
             success, _configuration.updateThrottle = imgui.InputInt("Delay Update (seconds)", _configuration.updateThrottle)
             imgui.PopItemWidth()

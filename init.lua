@@ -13,13 +13,15 @@ local ConfigurationWindow
 if optionsLoaded then
     options.configurationEnableWindow = lib_helpers.NotNilOrDefault(options.configurationEnableWindow, true)
     options.enable                    = lib_helpers.NotNilOrDefault(options.enable, true)
+    options.enableCustomBanners       = lib_helpers.NotNilOrDefault(options.enableCustomBanners, true)
     options.server                    = lib_helpers.NotNilOrDefault(options.server, 1)
     options.updateThrottle            = lib_helpers.NotNilOrDefault(options.updateThrottle, 0)
 else
-    options = 
+    options =
     {
         configurationEnableWindow = true,
         enable = true,
+        enableCustomBanners = true,
         server = 1,
         updateThrottle = 0
     }
@@ -54,7 +56,7 @@ local function process_weapon(item, floor)
             then
                 local white_list_count = table.getn(state.white_listed_drops)
                 local white_listed = false
-                
+
                 for i=1, white_list_count, 1 do
                     if state.white_listed_drops[i].id == item.id then
                         white_listed = true
@@ -114,7 +116,6 @@ end
 
 local function process_inventory(index)
     index = index or lib_items.Me
-
     if last_inventory_time + update_delay < current_time or last_inventory_index ~= index or cache_inventory == nil then
         cache_inventory = lib_items.GetInventory(index)
         last_inventory_index = index
@@ -148,7 +149,9 @@ local function save_options(options)
         io.write("{\n")
         io.write(string.format("    configurationEnableWindow = %s,\n", tostring(options.configurationEnableWindow)))
         io.write(string.format("    enable = %s,\n", tostring(options.enable)))
+        io.write(string.format("    enableCustomBanners = %s,\n", tostring(options.enableCustomBanners)))
         io.write(string.format("    server = %s,\n", tostring(options.server)))
+        io.write(string.format("    updateThrottle = %s,\n", tostring(options.updateThrottle)))
         io.write("}\n")
 
         io.close(file)
@@ -172,15 +175,15 @@ end
 
 local function present_banner()
     local banner_text = get_banner_text()
-    banner_text = '"' .. clean_pso_text(banner_text) .. '"'
-
+    banner_text = wrap_as_single_arg(clean_pso_text(banner_text))
+    
     if banner_text:find("has found") and state.banner_text ~= banner_text then
         local command = "start " .. state.exe_path .. banner_text
         state.banner_text = banner_text
 
         table.insert(state.banner_cache, banner_text)
         os.execute(command)
-    end 
+    end
 
     imgui.Begin("Banner")
         for k, v in pairs(state.banner_cache) do
@@ -204,17 +207,20 @@ local function present()
         save_options(options)
     end
 
-    -- Global enable here to let the configuration window work
-    if options.enable == false then
-        return
-    end
-
     --- Update timer for update throttle
     current_time = pso.get_tick_count()
 
-    present_banner()
-    process_inventory(lib_items.Me)
-    process_floor()
+    if options.enable then
+        present_banner()
+    end
+
+    if options.enableCustomBanners then
+        process_inventory(lib_items.Me)
+        process_floor()
+    else
+        state.inventoried_cache = {}
+        state.white_listed_drops = {}
+    end
 end
 
 local function init()
