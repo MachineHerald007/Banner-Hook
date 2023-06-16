@@ -13,6 +13,7 @@ local ConfigurationWindow
 if optionsLoaded then
     options.configurationEnableWindow = lib_helpers.NotNilOrDefault(options.configurationEnableWindow, true)
     options.enable                    = lib_helpers.NotNilOrDefault(options.enable, true)
+    options.enableBannerWindow        = lib_helpers.NotNilOrDefault(options.enableBannerWindow, true)
     options.enableCustomBanners       = lib_helpers.NotNilOrDefault(options.enableCustomBanners, true)
     options.server                    = lib_helpers.NotNilOrDefault(options.server, 1)
     options.updateThrottle            = lib_helpers.NotNilOrDefault(options.updateThrottle, 0)
@@ -21,6 +22,7 @@ else
     {
         configurationEnableWindow = true,
         enable = true,
+        enableBannerWindow = true,
         enableCustomBanners = true,
         server = 1,
         updateThrottle = 0
@@ -79,12 +81,15 @@ local function process_weapon(item, floor)
                     state.white_listed_drops[i].id == item.id and
                     state.white_listed_drops[i].from_inventory == false
                 then
-                    state.white_listed_drops[i].from_inventory = true
                     local player_address = lib_characters.GetSelf()
                     local player_name = lib_characters.GetPlayerName(player_address)
-                    local banner = "**".. player_name .. "** has found " .. "**" .. item.name .. "** with " .. item.weapon.stats[6] .. "hit!"                    
-                    local command = "start " .. state.exe_path .. wrap_as_single_arg(banner)
-                    os.execute(command)   
+                    local banner_text = "**".. player_name .. "** has found " .. "**" .. item.name .. "** with " .. item.weapon.stats[6] .. "hit!"                    
+                    local command = "start " .. state.exe_path .. wrap_as_single_arg(banner_text)
+                    
+                    state.banner_text = banner_text
+                    state.white_listed_drops[i].from_inventory = true
+                    table.insert(state.banner_cache, banner_text)
+                    os.execute(command)
                 end
             end
         end
@@ -149,6 +154,7 @@ local function save_options(options)
         io.write("{\n")
         io.write(string.format("    configurationEnableWindow = %s,\n", tostring(options.configurationEnableWindow)))
         io.write(string.format("    enable = %s,\n", tostring(options.enable)))
+        io.write(string.format("    enableBannerWindow = %s,\n", tostring(options.enableBannerWindow)))
         io.write(string.format("    enableCustomBanners = %s,\n", tostring(options.enableCustomBanners)))
         io.write(string.format("    server = %s,\n", tostring(options.server)))
         io.write(string.format("    updateThrottle = %s,\n", tostring(options.updateThrottle)))
@@ -185,11 +191,13 @@ local function present_banner()
         os.execute(command)
     end
 
-    imgui.Begin("Banner")
-        for k, v in pairs(state.banner_cache) do
-            imgui.Text("Banner: " .. v)
-        end
-    imgui.End()
+    if options.enableBannerWindow then
+        imgui.Begin("Banner")
+            for k, v in pairs(state.banner_cache) do
+                imgui.Text("Banner: " .. v)
+            end
+        imgui.End()
+    end
 end
 
 local function present()

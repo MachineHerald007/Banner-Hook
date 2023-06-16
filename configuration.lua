@@ -30,6 +30,11 @@ local function ConfigurationWindow(configuration)
                 this.changed = true
             end
 
+            if imgui.Checkbox("Enable Banner Window", _configuration.enableBannerWindow) then
+                _configuration.enableBannerWindow = not _configuration.enableBannerWindow
+                this.changed = true
+            end
+
             if imgui.Checkbox("Enable Custom Banners", _configuration.enableCustomBanners) then
                 _configuration.enableCustomBanners = not _configuration.enableCustomBanners
                 this.changed = true
