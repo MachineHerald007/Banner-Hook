@@ -38,11 +38,12 @@ local last_floor_time = 0
 local cache_floor = nil
 
 local state = {
+    player_name = lib_characters.GetPlayerName(lib_characters.GetSelf()),
     banner_text = "",
     banner_cache = {},
     inventoried_cache = {},
     white_listed_drops = {},
-    exe_path = os.getenv("PWD") or io.popen("cd"):read() .. "\\elite_force_webhook.exe "
+    exe_path = io.popen("cd"):read() .. "\\elite_force_webhook.exe "
 }
 
 local function wrap_as_single_arg(banner)
@@ -81,9 +82,7 @@ local function process_weapon(item, floor)
                     state.white_listed_drops[i].id == item.id and
                     state.white_listed_drops[i].from_inventory == false
                 then
-                    local player_address = lib_characters.GetSelf()
-                    local player_name = lib_characters.GetPlayerName(player_address)
-                    local banner_text = "**".. player_name .. "** has found " .. "**" .. item.name .. "** with " .. item.weapon.stats[6] .. "hit!"                    
+                    local banner_text = "**".. state.player_name .. "** has found " .. "**" .. item.name .. "** with " .. item.weapon.stats[6] .. "hit!"                    
                     local command = "start " .. state.exe_path .. wrap_as_single_arg(banner_text)
                     
                     state.banner_text = banner_text
