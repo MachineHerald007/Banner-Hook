@@ -38,12 +38,12 @@ local last_floor_time = 0
 local cache_floor = nil
 
 local state = {
-    player_name = lib_characters.GetPlayerName(lib_characters.GetSelf()),
     banner_text = "",
     banner_cache = {},
     inventoried_cache = {},
     white_listed_drops = {},
-    exe_path = io.popen("cd"):read() .. "\\elite_force_webhook.exe "
+    exe_path = io.popen("cd"):read() .. "\\elite_force_webhook.exe ",
+    player_name = lib_characters.GetPlayerName(lib_characters.GetSelf())
 }
 
 local function wrap_as_single_arg(banner)
